@@ -1,0 +1,10 @@
+name: pages-build-deployment
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "forged upstream workflow run (attacker controlled name)"
