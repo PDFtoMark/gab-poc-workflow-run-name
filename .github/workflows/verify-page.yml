@@ -1,0 +1,59 @@
+name: Verifies gh-page is up and running
+
+on:
+  workflow_run:
+    workflows: ["pages-build-deployment"]
+    types: [completed]
+    branches:
+      - "poc-attacker"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-gh-page:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Where did checkout land
+        run: |
+          echo "event=${{ github.event_name }}"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "upstream_name=${{ github.event.workflow_run.name }}"
+          echo "upstream_event=${{ github.event.workflow_run.event }}"
+          echo "upstream_head_branch=${{ github.event.workflow_run.head_branch }}"
+          echo "upstream_head_sha=${{ github.event.workflow_run.head_sha }}"
+          echo "checked_out_commit=$(git rev-parse HEAD)"
+          git log -1 --format='checked_out_subject=%s'
+          if [ -f .github/workflows/pages-build-deployment.yml ]; then
+            echo "ATTACKER_FILE_PRESENT=yes"
+          else
+            echo "ATTACKER_FILE_PRESENT=no"
+          fi
+
+      - name: Simulated gh-page e2e failure (real workflow fails when page check fails)
+        run: |
+          echo "SIMULATING_THE_FAILURE_GATE"
+          exit 1
+
+      - name: Notify in Teams
+        if: failure()
+        uses: ./.github/actions/notify-teams
+        with:
+          webhook_url: ${{ secrets.POC_TEAMS_WEBHOOK }}
+          summary: "${{ github.workflow }} ${{ github.job }} failed"
+          notification_summary: "${{ github.job }} failed!"
+          github: ${{ toJson(github) }}
+          steps: ${{ toJson(steps) }}
+
+      - name: Show injection evidence
+        if: always()
+        run: |
+          echo "--- /tmp/pwned ---"
+          cat /tmp/pwned || echo "no /tmp/pwned"
+          echo "--- /tmp/leak ---"
+          cat /tmp/leak || echo "no /tmp/leak"
