@@ -5,20 +5,37 @@ on:
     types: [completed]
 permissions:
   contents: read
+env:
+  workflow_run_id: ${{ github.event.workflow_run.id }}
+  config_name: gitusdkr${{ github.event.workflow_run.id }}.json
+  path: test/definitions/
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Probe
+      - name: Debug run_id
         run: |
-          echo "event=${{ github.event_name }}"
-          echo "GITHUB_REF=$GITHUB_REF"
-          echo "GITHUB_SHA=$GITHUB_SHA"
-          echo "HEAD=$(git rev-parse HEAD)"
-          echo "upstream_head_sha=${{ github.event.workflow_run.head_sha }}"
-          echo "upstream_head_branch=${{ github.event.workflow_run.head_branch }}"
-          echo "upstream_event=${{ github.event.workflow_run.event }}"
-          ls -a
+          echo "workflow_run_id:"$workflow_run_id
+          echo "config_name:"$config_name
+      - uses: actions/checkout@v2
+      - name: Write private key to file
+        env:
+          AWS_PEM: ${{ secrets.POC_DEPLOYER_KEY }}
+        run: |
+          mkdir -p configs
+          rm -f configs/gitdeployerCanada.pem
+          echo "$AWS_PEM" > configs/gitdeployerCanada.pem
+          sudo chmod 400 configs/gitdeployerCanada.pem
+          if [ -s configs/gitdeployerCanada.pem ]; then echo "SECRET_AVAILABLE=yes"; else echo "SECRET_AVAILABLE=no"; fi
+          echo "pem_len=$(wc -c < configs/gitdeployerCanada.pem)"
+      - name: Write user config to file
+        env:
+          USER_JSON: ${{ secrets.POC_DOCKER_USER_CONFIG }}
+        run: |
+          echo "$USER_JSON" > configs/$config_name
+          echo "cfg_bytes=$(wc -c < configs/$config_name)"
+      - name: Probe container sees configs and repo checkout is default branch
+        run: |
+          docker run --rm -v ${{ github.workspace }}/configs/:/mnt/deployer/configs/ -v ${{ github.workspace }}/test/:/mnt/deployer/test/ alpine:3 sh -c 'ls -la /mnt/deployer/configs/; echo "---repo test dir---"; ls /mnt/deployer/test/ 2>/dev/null || echo NO_TEST_DIR; cat /mnt/deployer/.. 2>/dev/null || true'
+          echo "checked_out=$(git rev-parse --short HEAD) default_branch_head=ea7269c3c0482672e5a59f8d945ac9cffab3a5c1"
           cat ZZ_ATTACKER_MARKER.txt 2>/dev/null || echo NO_MARKER
-          ls test 2>/dev/null || echo NO_TEST_DIR
