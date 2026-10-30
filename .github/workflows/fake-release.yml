@@ -1,0 +1,9 @@
+name: Release Workflow
+on:
+  push:
+    branches: [development]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "attacker-controlled workflow named Release Workflow ran"

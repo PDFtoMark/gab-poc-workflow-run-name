@@ -1,0 +1,23 @@
+name: Deploy test
+on:
+  workflow_run:
+    workflows: ["Release Workflow"]
+    types: [completed]
+jobs:
+  deploy:
+    if: |
+      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'development'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show triggering run metadata
+        run: |
+          echo "trigger=${{ github.event_name }}"
+          echo "upstream_name=${{ github.event.workflow_run.name }}"
+          echo "upstream_head_branch=${{ github.event.workflow_run.head_branch }}"
+          echo "upstream_head_repo=${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "upstream_event=${{ github.event.workflow_run.event }}"
+      - name: Check secret visibility
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [ -n "$DEPLOY_HOST" ]; then echo "SECRET_AVAILABLE=yes"; else echo "SECRET_AVAILABLE=no"; fi
